@@ -3,5 +3,6 @@
         "espidf",
         "keyhan",
         "osal"
-    ]
+    ],
+    "C_Cpp.errorSquiggles": "enabled"
 }

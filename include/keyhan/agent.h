@@ -52,6 +52,7 @@ keyhan_agent_error_t keyhan_agent_init(keyhan_agent_t *agent,
 keyhan_agent_error_t keyhan_agent_start(keyhan_agent_t *agent);
 keyhan_agent_error_t keyhan_agent_start_async(keyhan_agent_t *agent,
                                               keyhan_agent_async_cfg_t *cfg);
+keyhan_agent_error_t keyhan_agent_step(keyhan_agent_t *agent);
 keyhan_agent_error_t keyhan_agent_join(keyhan_agent_t *agent,
                                        uint32_t timeout_ms);
 keyhan_agent_error_t keyhan_agent_stop_async(keyhan_agent_t *agent);

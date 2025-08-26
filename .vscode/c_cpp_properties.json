@@ -4,13 +4,18 @@
             "name": "KEYHAN",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/include/"
+                "${workspaceFolder}/include/",
+                "${env:IDF_PATH}/components/**",
+                "${env:IDF_PATH}/components/freertos/**"
             ],
             "browse": {
                 "path": [
                     "${workspaceFolder}/**",
-                    "${workspaceFolder}/include/*"
-                ]
+                    "${workspaceFolder}/include/*",
+                    "${env:IDF_PATH}/components/**",
+                    "${env:IDF_PATH}/components/freertos/**"
+                ],
+                "limitSymbolsToIncludedHeaders": true
             },
             "cStandard": "c11",
             "cppStandard": "c++17",
