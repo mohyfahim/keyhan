@@ -1,5 +1,3 @@
 build
-.vscode-ctags
-.vscode
 sdkconfig
 sdkconfig.old
