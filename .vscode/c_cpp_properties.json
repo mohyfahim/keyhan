@@ -1,17 +1,16 @@
 {
     "configurations": [
         {
-            "name": "ESP32",
+            "name": "KEYHAN",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/include"
+                "${workspaceFolder}/include/"
             ],
             "browse": {
                 "path": [
                     "${workspaceFolder}/**",
-                    "${workspaceFolder}/include"
-                ],
-                "limitSymbolsToIncludedHeaders": true
+                    "${workspaceFolder}/include/*"
+                ]
             },
             "cStandard": "c11",
             "cppStandard": "c++17",
