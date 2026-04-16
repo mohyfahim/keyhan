@@ -1,4 +1,4 @@
 idf_component_register(
-    SRCS "../../src/ota.c"
-    INCLUDE_DIRS "../../include"
+    SRCS "../../src/core/agent.c"
+    INCLUDE_DIRS "../../include/keyhan"
 )

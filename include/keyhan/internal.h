@@ -8,7 +8,7 @@ extern "C" {
 #endif
 
 struct keyhan_agent {
-  keyhan_agent_async_cfg_t cfg;
+  keyhan_agent_async_cfg_t *cfg;
 
   keyhan_osal_task_t *task;
   keyhan_osal_mutex_t *lock;
