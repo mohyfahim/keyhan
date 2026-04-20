@@ -4,15 +4,19 @@
             "name": "KEYHAN",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/include/",
+                "${workspaceFolder}/include/**",
+                "${workspaceFolder}/src/**",
                 "${env:IDF_PATH}/components/**",
+                "${env:IDF_PATH}/components/**/include/",
                 "${env:IDF_PATH}/components/freertos/**"
             ],
             "browse": {
                 "path": [
                     "${workspaceFolder}/**",
-                    "${workspaceFolder}/include/*",
+                    "${workspaceFolder}/include/**",
+                    "${workspaceFolder}/src/**",
                     "${env:IDF_PATH}/components/**",
+                    "${env:IDF_PATH}/components/**/include/",
                     "${env:IDF_PATH}/components/freertos/**"
                 ],
                 "limitSymbolsToIncludedHeaders": true

@@ -30,36 +30,23 @@ typedef struct {
   bool auto_reboot;
 } keyhan_agent_init_params_t;
 
-typedef struct {
-  const char *name;
-  uint32_t task_stack_size;
-  int task_priority;
-  uint32_t loop_period_ms;
-} keyhan_agent_async_cfg_t;
-
 typedef enum {
-  OTA_AGENT_STATE_STOPPED = 0,
-  OTA_AGENT_STATE_IDLE,
-  OTA_AGENT_STATE_RUNNING,
-  OTA_AGENT_STATE_STOPPING,
-  OTA_AGENT_STATE_ERROR,
+  KEYHAN_AGENT_STATE_STOPPED = 0,
+  KEYHAN_AGENT_STATE_IDLE,
+  KEYHAN_AGENT_STATE_RUNNING,
+  KEYHAN_AGENT_STATE_STOPPING,
+  KEYHAN_AGENT_STATE_ERROR,
 } keyhan_agent_state_t;
 
-keyhan_agent_error_t keyhan_agent_init(keyhan_agent_t *agent,
-                                       keyhan_agent_device_info_t *devinfo,
-                                       const keyhan_agent_init_params_t *params,
-                                       keyhan_agent_callbacks_t *cb);
+keyhan_agent_error_t
+keyhan_agent_init(keyhan_agent_t **agent_out,
+                  const keyhan_agent_device_info_t *devinfo,
+                  const keyhan_agent_init_params_t *params,
+                  const keyhan_agent_callbacks_t *cb);
 keyhan_agent_error_t keyhan_agent_start(keyhan_agent_t *agent);
-keyhan_agent_error_t keyhan_agent_start_async(keyhan_agent_t *agent,
-                                              keyhan_agent_async_cfg_t *cfg);
 keyhan_agent_error_t keyhan_agent_step(keyhan_agent_t *agent);
-keyhan_agent_error_t keyhan_agent_join(keyhan_agent_t *agent,
-                                       uint32_t timeout_ms);
-keyhan_agent_error_t keyhan_agent_stop_async(keyhan_agent_t *agent);
-keyhan_agent_error_t keyhan_agent_stop(keyhan_agent_t *agent);
-keyhan_agent_error_t keyhan_agent_deinit(keyhan_agent_t *agent);
 
-keyhan_agent_state_t keyhan_agent_get_state(keyhan_agent_t *agent);
+keyhan_agent_error_t keyhan_agent_deinit(keyhan_agent_t *agent);
 
 #ifdef __cplusplus
 }

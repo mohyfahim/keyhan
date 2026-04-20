@@ -1,3 +1,5 @@
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "keyhan/agent.h"
 #include <stdio.h>
 
@@ -24,7 +26,8 @@ static void on_update_ready(void *user) {
 
 void app_main(void) {
 
-  keyhan_agent_t *agent;
+  keyhan_agent_t *agent = NULL;
+
   keyhan_agent_device_info_t devinfo = {
       .current_version = 0,
       .device_id = "dev1",
@@ -44,7 +47,7 @@ void app_main(void) {
 
   keyhan_agent_error_t err;
 
-  err = keyhan_agent_init(agent, &devinfo, &params, &cb);
+  err = keyhan_agent_init(&agent, &devinfo, &params, &cb);
   if (err != KEYHAN_AGENT_OK) {
     // todo
   }
@@ -60,5 +63,7 @@ void app_main(void) {
     if (err != KEYHAN_AGENT_OK) {
       // todo
     }
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
   }
 }
