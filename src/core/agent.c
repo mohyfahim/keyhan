@@ -1,6 +1,7 @@
 #include "keyhan/agent.h"
 #include "internal.h"
 #include "keyhan/error.h"
+#include "keyhan/transport.h"
 
 #include <stdlib.h>
 
@@ -24,7 +25,7 @@ keyhan_agent_init(keyhan_agent_t **agent_out,
 
 keyhan_agent_error_t keyhan_agent_start(keyhan_agent_t *agent) {
 
-  keyhan_agent_transport_init();
+  keyhan_agent_transport_init(agent, KEYHAN_AGENT_TRANSPORT_HTTP);
 
   agent->state = KEYHAN_AGENT_STATE_RUNNING;
 
@@ -33,7 +34,7 @@ keyhan_agent_error_t keyhan_agent_start(keyhan_agent_t *agent) {
 
 keyhan_agent_error_t keyhan_agent_step(keyhan_agent_t *agent) {
 
-  keyhan_agent_transport_pull();
+  keyhan_agent_transport_pull(agent);
 
   agent->state = KEYHAN_AGENT_STATE_RUNNING;
 
@@ -42,7 +43,7 @@ keyhan_agent_error_t keyhan_agent_step(keyhan_agent_t *agent) {
 
 keyhan_agent_error_t keyhan_agent_stop(keyhan_agent_t *agent) {
 
-  keyhan_agent_transport_stop();
+  keyhan_agent_transport_stop(agent);
 
   agent->state = KEYHAN_AGENT_STATE_STOPPED;
 
@@ -52,7 +53,7 @@ keyhan_agent_error_t keyhan_agent_stop(keyhan_agent_t *agent) {
 keyhan_agent_error_t keyhan_agent_deinit(keyhan_agent_t *agent) {
 
   if (agent) {
-    keyhan_agent_transport_deinit();
+    keyhan_agent_transport_deinit(agent);
     free(agent);
   }
   return KEYHAN_AGENT_OK;

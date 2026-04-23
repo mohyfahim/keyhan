@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-get_filename_component(OTA_LIB_PORT_DIR "../../ports/espidf" ABSOLUTE)
+get_filename_component(OTA_LIB_PORT_DIR "../../ports/esp32/keyhan" ABSOLUTE)
 
 list(APPEND EXTRA_COMPONENT_DIRS "${OTA_LIB_PORT_DIR}")
 

@@ -6,9 +6,15 @@
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/include/**",
                 "${workspaceFolder}/src/**",
+                "${workspaceFolder}/example/**/build/config",
                 "${env:IDF_PATH}/components/**",
                 "${env:IDF_PATH}/components/**/include/",
-                "${env:IDF_PATH}/components/freertos/**"
+                "${env:IDF_PATH}/components/**/platform_include/",
+                "${env:IDF_PATH}/components/newlib/platform_include/",
+                "${env:IDF_PATH}/components/soc/**/register/*",
+                "${env:IDF_PATH}/components/freertos/**",
+                "${env:IDF_PATH}/components/freertos/config/include/freertos/*",
+                "${env:IDF_PATH}/components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos/*"
             ],
             "browse": {
                 "path": [
@@ -17,7 +23,12 @@
                     "${workspaceFolder}/src/**",
                     "${env:IDF_PATH}/components/**",
                     "${env:IDF_PATH}/components/**/include/",
-                    "${env:IDF_PATH}/components/freertos/**"
+                    "${env:IDF_PATH}/components/**/platform_include/",
+                    "${env:IDF_PATH}/components/newlib/platform_include/",
+                    "${env:IDF_PATH}/components/soc/**/register/*",
+                    "${env:IDF_PATH}/components/freertos/**",
+                    "${env:IDF_PATH}/components/freertos/config/include/freertos/*",
+                    "${env:IDF_PATH}/components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos/*"
                 ],
                 "limitSymbolsToIncludedHeaders": true
             },
