@@ -115,7 +115,7 @@ keyhan_agent_error_t keyhan_osal_transport_http_init(keyhan_agent_t *agent) {
     agent->client = malloc(sizeof(struct keyhan_osal_transport_client));
     if (agent->client == NULL) {
       ESP_LOGE(TAG, "Failed to allocate memory for transport client");
-      return KEYHAN_AGENT_ERR_UNINITIALIZED; // Or appropriate error
+      return KEYHAN_AGENT_ERR_UNINITIALIZED;
     }
   }
 
@@ -172,6 +172,7 @@ keyhan_agent_error_t keyhan_osal_transport_http_deinit(keyhan_agent_t *agent) {
   if (!agent->client) {
     return KEYHAN_AGENT_ERR_UNINITIALIZED;
   }
+  free(agent->client);
 
   return KEYHAN_AGENT_OK;
 }
