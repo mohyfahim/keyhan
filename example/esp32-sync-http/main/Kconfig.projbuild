@@ -1,0 +1,24 @@
+menu "Transport Configuration"
+
+    choice TRANSPORT_PROTOCOL_SELECTION
+        prompt "Select Transport Protocol"
+        default KEYHAN_TRANSPORT_USE_HTTP
+        help
+            Select the underlying transport protocol to be used for sending data.
+
+        config KEYHAN_TRANSPORT_USE_HTTP
+            bool "HTTP Transport (esp_http_client)"
+            
+        config KEYHAN_TRANSPORT_USE_SOCKET
+            bool "Raw Socket Transport (TCP)"
+            
+    endchoice
+
+    config KEYHAN_TARGET_URI
+        string "Target IP (Socket) or URL (HTTP)"
+        default "http://httpbin.org/post" if KEYHAN_TRANSPORT_USE_HTTP
+        default "192.168.1.100" if KEYHAN_TRANSPORT_USE_SOCKET
+        help
+            The endpoint to connect to.
+
+endmenu

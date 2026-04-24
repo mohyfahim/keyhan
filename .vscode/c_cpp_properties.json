@@ -8,6 +8,7 @@
                 "${workspaceFolder}/src/**",
                 "${workspaceFolder}/example/**/build/config",
                 "${env:IDF_PATH}/components/**",
+                "${env:IDF_PATH}/components/esp-tls",
                 "${env:IDF_PATH}/components/**/include/",
                 "${env:IDF_PATH}/components/**/platform_include/",
                 "${env:IDF_PATH}/components/newlib/platform_include/",

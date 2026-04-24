@@ -5,19 +5,20 @@
 
 #include <stdlib.h>
 
-keyhan_agent_error_t
-keyhan_agent_init(keyhan_agent_t **agent_out,
-                  const keyhan_agent_device_info_t *devinfo,
-                  const keyhan_agent_init_params_t *params,
-                  const keyhan_agent_callbacks_t *cb) {
+keyhan_agent_error_t keyhan_agent_init(keyhan_agent_t **agent_out,
+                                       keyhan_agent_device_info_t *devinfo,
+                                       keyhan_agent_init_params_t *params,
+                                       keyhan_agent_callbacks_t *cb) {
 
-  if (!agent_out) {
+  if (!agent_out || !devinfo || !params || !cb) {
     return KEYHAN_AGENT_ERR_INVALID_ARG;
   }
   keyhan_agent_t *agent;
   agent = (keyhan_agent_t *)calloc(1, sizeof(keyhan_agent_t));
   agent->state = KEYHAN_AGENT_STATE_IDLE;
-
+  agent->devinfo = devinfo;
+  agent->params = params;
+  agent->cb = cb;
   *agent_out = agent;
 
   return KEYHAN_AGENT_OK;
@@ -25,8 +26,14 @@ keyhan_agent_init(keyhan_agent_t **agent_out,
 
 keyhan_agent_error_t keyhan_agent_start(keyhan_agent_t *agent) {
 
-  keyhan_agent_transport_init(agent, KEYHAN_AGENT_TRANSPORT_HTTP);
+  if (!agent) {
+    return KEYHAN_AGENT_ERR_UNINITIALIZED;
+  }
 
+  keyhan_agent_error_t err = keyhan_agent_transport_init(agent);
+  if (err != KEYHAN_AGENT_OK) {
+    return err;
+  }
   agent->state = KEYHAN_AGENT_STATE_RUNNING;
 
   return KEYHAN_AGENT_OK;

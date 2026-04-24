@@ -12,8 +12,7 @@ extern "C" {
 typedef struct keyhan_agent keyhan_agent_t;
 
 typedef struct {
-  const char *project_id;
-  const char *device_id;
+  const char *device_token;
   const int current_version;
 } keyhan_agent_device_info_t;
 
@@ -38,11 +37,10 @@ typedef enum {
   KEYHAN_AGENT_STATE_ERROR,
 } keyhan_agent_state_t;
 
-keyhan_agent_error_t
-keyhan_agent_init(keyhan_agent_t **agent_out,
-                  const keyhan_agent_device_info_t *devinfo,
-                  const keyhan_agent_init_params_t *params,
-                  const keyhan_agent_callbacks_t *cb);
+keyhan_agent_error_t keyhan_agent_init(keyhan_agent_t **agent_out,
+                                       keyhan_agent_device_info_t *devinfo,
+                                       keyhan_agent_init_params_t *params,
+                                       keyhan_agent_callbacks_t *cb);
 keyhan_agent_error_t keyhan_agent_start(keyhan_agent_t *agent);
 keyhan_agent_error_t keyhan_agent_step(keyhan_agent_t *agent);
 
