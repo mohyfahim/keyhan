@@ -16,12 +16,16 @@ typedef struct keyhan_utils_fifo {
 // Initialize the FIFO with a pre-allocated buffer
 keyhan_agent_error_t keyhan_utils_fifo_init(keyhan_utils_fifo_t **fifo_out,
                                             size_t item_size, size_t capacity) {
-
+  // TODO: add lock capability
   if (!fifo_out)
     return KEYHAN_AGENT_ERR_INVALID_ARG;
   keyhan_utils_fifo_t *fifo;
   fifo = (keyhan_utils_fifo_t *)calloc(1, sizeof(keyhan_utils_fifo_t));
   fifo->buffer = (uint8_t *)calloc(capacity, item_size);
+  if (!fifo->buffer) {
+    free(fifo);
+    return KEYHAN_AGENT_ERR_NO_MEMORY;
+  }
   fifo->item_size = item_size;
   fifo->capacity = capacity;
   fifo->head = 0;

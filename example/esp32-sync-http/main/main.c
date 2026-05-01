@@ -187,14 +187,14 @@ void app_main(void) {
   k_err = keyhan_agent_init(&agent, &devinfo, &params, &cb);
   if (k_err != KEYHAN_AGENT_OK) {
     ESP_LOGE(TAG, "Error on initializing keyhan agent, err: %s",
-             keyhan_agent_error_to_name(k_err));
+             KEYHAN_AGENT_ERROR_TO_NAME(k_err));
     return;
   }
 
   k_err = keyhan_agent_start(agent);
   if (k_err != KEYHAN_AGENT_OK) {
     ESP_LOGE(TAG, "Error on starting keyhan agent, err: %s",
-             keyhan_agent_error_to_name(k_err));
+             KEYHAN_AGENT_ERROR_TO_NAME(k_err));
     return;
   }
 

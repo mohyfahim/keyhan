@@ -30,7 +30,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt) {
                                                              // response of http
                                                              // request from
                                                              // event handler
-  static int output_len; // Stores number of bytes read
+  static int output_len = 0; // Stores number of bytes read
   switch (evt->event_id) {
   case HTTP_EVENT_ERROR:
     ESP_LOGD(TAG, "HTTP_EVENT_ERROR");
@@ -80,7 +80,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt) {
         (keyhan_utils_fifo_t *)evt->user_data, output_buffer);
     if (err != KEYHAN_AGENT_OK) {
       ESP_LOGE(TAG, "Error on pushing to buffer: %s",
-               keyhan_agent_error_to_name(err));
+               KEYHAN_AGENT_ERROR_TO_NAME(err));
     }
     memset(output_buffer, 0, MAX_KEYHAN_OSAL_HTTP_EVENT_BUFFER_SIZE);
     output_len = 0;
@@ -141,16 +141,17 @@ keyhan_agent_error_t keyhan_osal_transport_http_init(keyhan_agent_t *agent) {
   return KEYHAN_AGENT_OK;
 }
 
-keyhan_agent_error_t keyhan_osal_transport_http_post(keyhan_agent_t *agent) {
+keyhan_agent_error_t keyhan_osal_transport_http_post(keyhan_agent_t *agent,
+                                                     void *payload,
+                                                     size_t len) {
   if (!agent->client || !agent->client->handle) { // Check both
     return KEYHAN_AGENT_ERR_UNINITIALIZED;
   }
-  const char *post_data = "{\"field1\":\"value1\"}";
   esp_http_client_set_method(agent->client->handle, HTTP_METHOD_POST);
   esp_http_client_set_header(agent->client->handle, "Content-Type",
                              "application/keyhan");
-  esp_http_client_set_post_field(agent->client->handle, post_data,
-                                 strlen(post_data));
+  esp_http_client_set_post_field(agent->client->handle, (const char *)payload,
+                                 len);
   esp_err_t err = esp_http_client_perform(agent->client->handle);
   if (err == ESP_OK) {
     ESP_LOGI(TAG, "HTTP POST Status = %d, content_length = %" PRId64,
