@@ -4,6 +4,7 @@
 #include "keyhan/error.h"
 
 #define KEYHAN_FOOTER_MAGIC 0xDEADBEEF // 4-byte integrity pattern
+#define KEYHAN_AGENT_MAX_MSG_SIZE sizeof(keyhan_agent_transport_msg_t)
 
 #ifdef __cplusplus
 extern "C" {

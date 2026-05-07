@@ -11,6 +11,7 @@ extern "C" {
 
 keyhan_agent_error_t keyhan_osal_transport_http_init(keyhan_agent_t *agent);
 keyhan_agent_error_t keyhan_osal_transport_http_post(keyhan_agent_t *agent,
+                                                     const char *url,
                                                      void *payload, size_t len);
 keyhan_agent_error_t keyhan_osal_transport_http_get(keyhan_agent_t *agent);
 keyhan_agent_error_t keyhan_osal_transport_http_deinit(keyhan_agent_t *agent);

@@ -5,15 +5,9 @@
 #include <string.h>
 
 #define KEYHAN_AGENT_TRANSPORT_ENDPOINT "http://"
-#define KEYHAN_AGENT_MAX_MSG_SIZE sizeof(keyhan_agent_transport_msg_t)
 keyhan_agent_error_t keyhan_agent_transport_init(keyhan_agent_t *agent) {
 
-  keyhan_agent_error_t err =
-      keyhan_utils_fifo_init(&agent->buffer, KEYHAN_AGENT_MAX_MSG_SIZE, 4);
-  if (err != KEYHAN_AGENT_OK) {
-    return err;
-  }
-
+  keyhan_agent_error_t err;
   keyhan_agent_transport_msg_t msg = {};
   msg.hdr.payload_len = sizeof(keyhan_agent_transport_msg_header_t) +
                         sizeof(keyhan_agent_transport_msg_body_req_hello_t) +
@@ -45,7 +39,8 @@ keyhan_agent_error_t keyhan_agent_transport_init(keyhan_agent_t *agent) {
   if (err != KEYHAN_AGENT_OK) {
     return err;
   }
-  err = keyhan_osal_transport_http_post(agent, serialize, len);
+  err = keyhan_osal_transport_http_post(
+      agent, "http://192.168.1.108:8091/v1/device", serialize, len);
 
   if (err != KEYHAN_AGENT_OK) {
     return err;

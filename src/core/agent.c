@@ -15,10 +15,20 @@ keyhan_agent_error_t keyhan_agent_init(keyhan_agent_t **agent_out,
   }
   keyhan_agent_t *agent;
   agent = (keyhan_agent_t *)calloc(1, sizeof(keyhan_agent_t));
+  if (!agent) {
+    return KEYHAN_AGENT_ERR_NO_MEM;
+  }
   agent->state = KEYHAN_AGENT_STATE_IDLE;
   agent->devinfo = devinfo;
   agent->params = params;
   agent->cb = cb;
+
+  keyhan_agent_error_t err =
+      keyhan_utils_fifo_init(&agent->buffer, KEYHAN_AGENT_MAX_MSG_SIZE, 4);
+  if (err != KEYHAN_AGENT_OK) {
+    return err;
+  }
+
   *agent_out = agent;
 
   return KEYHAN_AGENT_OK;
@@ -61,6 +71,8 @@ keyhan_agent_error_t keyhan_agent_deinit(keyhan_agent_t *agent) {
 
   if (agent) {
     keyhan_agent_transport_deinit(agent);
+    if (agent->buffer)
+      keyhan_utils_fifo_deinit(agent->buffer);
     free(agent);
   }
   return KEYHAN_AGENT_OK;

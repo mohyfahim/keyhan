@@ -142,12 +142,14 @@ keyhan_agent_error_t keyhan_osal_transport_http_init(keyhan_agent_t *agent) {
 }
 
 keyhan_agent_error_t keyhan_osal_transport_http_post(keyhan_agent_t *agent,
+                                                     const char *url,
                                                      void *payload,
                                                      size_t len) {
   if (!agent->client || !agent->client->handle) { // Check both
     return KEYHAN_AGENT_ERR_UNINITIALIZED;
   }
   esp_http_client_set_method(agent->client->handle, HTTP_METHOD_POST);
+  esp_http_client_set_url(agent->client->handle, url);
   esp_http_client_set_header(agent->client->handle, "Content-Type",
                              "application/keyhan");
   esp_http_client_set_post_field(agent->client->handle, (const char *)payload,
