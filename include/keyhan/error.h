@@ -13,7 +13,11 @@
   X(KEYHAN_AGENT_ERR_INVALIDE_RES_VERSION, -9)                                 \
   X(KEYHAN_AGENT_ERR_INVALIDE_RES_TYPE, -10)                                   \
   X(KEYHAN_AGENT_ERR_INVALIDE_RES_LEN, -11)                                    \
-  X(KEYHAN_AGENT_ERR_INVALIDE_RES_FOOTER, -12)
+  X(KEYHAN_AGENT_ERR_INVALIDE_RES_FOOTER, -12)                                 \
+  X(KEYHAN_AGENT_ERR_NO_UPDATE, -13)                                           \
+  X(KEYHAN_AGENT_ERR_NETWORK, -14)                                             \
+  X(KEYHAN_AGENT_ERR_INTEGRITY, -15)                                           \
+  X(KEYHAN_AGENT_ERR_NOT_SUPPORTED, -16)
 
 // Generate enum definition
 typedef enum {
@@ -48,6 +52,14 @@ typedef enum {
                    ? "KEYHAN_AGENT_ERR_INVALIDE_RES_LEN"                       \
                : (err) == KEYHAN_AGENT_ERR_INVALIDE_RES_FOOTER                 \
                    ? "KEYHAN_AGENT_ERR_INVALIDE_RES_FOOTER"                    \
+               : (err) == KEYHAN_AGENT_ERR_NO_UPDATE                           \
+                   ? "KEYHAN_AGENT_ERR_NO_UPDATE"                              \
+               : (err) == KEYHAN_AGENT_ERR_NETWORK                             \
+                   ? "KEYHAN_AGENT_ERR_NETWORK"                                \
+               : (err) == KEYHAN_AGENT_ERR_INTEGRITY                           \
+                   ? "KEYHAN_AGENT_ERR_INTEGRITY"                              \
+               : (err) == KEYHAN_AGENT_ERR_NOT_SUPPORTED                       \
+                   ? "KEYHAN_AGENT_ERR_NOT_SUPPORTED"                          \
                    : "unsupported error"))
 
 #ifdef __cplusplus

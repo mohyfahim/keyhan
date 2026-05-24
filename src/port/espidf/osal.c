@@ -1,181 +1,125 @@
 #include "keyhan/osal.h"
-#include "esp_event.h"
+#include "keyhan/ports/espidf_osal.h"
+#include "keyhan/protocol.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
-#include "esp_netif.h"
-#include "esp_tls.h"
-#include "internal.h"
-#include "keyhan/agent.h"
-#include "keyhan/error.h"
-
-#include <stdlib.h>
-#include <sys/param.h>
+#include <string.h>
 
 static const char *TAG = "keyhan_osal_espidf";
 
-#define MAX_KEYHAN_OSAL_HTTP_EVENT_BUFFER_SIZE                                 \
-  sizeof(keyhan_agent_transport_msg_t)
+static keyhan_agent_error_t keyhan_osal_fetch_update_info(void *ctx,
+                                                          const char *device_token,
+                                                          keyhan_ota_update_info_t *out_info) {
+  keyhan_espidf_osal_ctx_t *osal_ctx = (keyhan_espidf_osal_ctx_t *)ctx;
+  esp_http_client_config_t config;
+  esp_http_client_handle_t client;
+  char response[384] = {0};
+  int read_len;
+  keyhan_agent_error_t err;
 
-struct keyhan_osal_transport_client {
-#ifdef CONFIG_KEYHAN_TRANSPORT_USE_HTTP
-  esp_http_client_handle_t handle;
-#elif defined(CONFIG_KEYHAN_TRANSPORT_USE_SOCKET)
-  int socket_fd;
-#endif
-};
+  if (!osal_ctx || !osal_ctx->manifest_url || !device_token || !out_info) {
+    return KEYHAN_AGENT_ERR_INVALID_ARG;
+  }
 
-esp_err_t _http_event_handler(esp_http_client_event_t *evt) {
-  static char
-      output_buffer[MAX_KEYHAN_OSAL_HTTP_EVENT_BUFFER_SIZE]; // Buffer to store
-                                                             // response of http
-                                                             // request from
-                                                             // event handler
-  static int output_len = 0; // Stores number of bytes read
-  switch (evt->event_id) {
-  case HTTP_EVENT_ERROR:
-    ESP_LOGD(TAG, "HTTP_EVENT_ERROR");
-    break;
-  case HTTP_EVENT_ON_CONNECTED:
-    ESP_LOGD(TAG, "HTTP_EVENT_ON_CONNECTED");
-    break;
-  case HTTP_EVENT_HEADER_SENT:
-    ESP_LOGD(TAG, "HTTP_EVENT_HEADER_SENT");
-    break;
-  case HTTP_EVENT_ON_HEADER:
-    ESP_LOGD(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key,
-             evt->header_value);
-    break;
-  case HTTP_EVENT_ON_DATA:
-    ESP_LOGD(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
-    // Clean the buffer in case of a new request
-    if (!output_len) {
-      // we are just starting to copy the output data into the use
-      memset(output_buffer, 0, MAX_KEYHAN_OSAL_HTTP_EVENT_BUFFER_SIZE);
-    }
-    /*
-     *  Check for chunked encoding is added as the URL for chunked encoding used
-     * in this example returns binary data. However, event handler can also be
-     * used in case chunked encoding is used.
-     */
-    if (!esp_http_client_is_chunked_response(evt->client)) {
-      // If user_data buffer is configured, copy the response into the buffer
-      int copy_len = 0;
-      int content_len = esp_http_client_get_content_length(evt->client);
-      copy_len = MIN(evt->data_len, (content_len - output_len));
-      if (copy_len + output_len < MAX_KEYHAN_OSAL_HTTP_EVENT_BUFFER_SIZE) {
-        memcpy(output_buffer + output_len, evt->data, copy_len);
-      } else {
-        ESP_LOGW(TAG, "recieved message larger than the protocol: %d",
-                 output_len + copy_len);
-      }
+  memset(&config, 0, sizeof(config));
+  config.url = osal_ctx->manifest_url;
+  config.method = HTTP_METHOD_GET;
+  client = esp_http_client_init(&config);
+  if (!client) {
+    return KEYHAN_AGENT_ERR_NO_MEM;
+  }
 
-      output_len += copy_len;
-    }
+  esp_http_client_set_header(client, KEYHAN_OTA_PROTOCOL_HEADER_DEVICE_TOKEN,
+                             device_token);
+  esp_http_client_set_header(client, "Accept",
+                             KEYHAN_OTA_PROTOCOL_HEADER_ACCEPT);
+  if (esp_http_client_open(client, 0) != ESP_OK) {
+    esp_http_client_cleanup(client);
+    return KEYHAN_AGENT_ERR_NETWORK;
+  }
 
-    break;
-  case HTTP_EVENT_ON_FINISH: {
-    ESP_LOGD(TAG, "HTTP_EVENT_ON_FINISH");
-    ESP_LOG_BUFFER_HEX(TAG, output_buffer, output_len);
-    keyhan_agent_error_t err = keyhan_utils_fifo_push(
-        (keyhan_utils_fifo_t *)evt->user_data, output_buffer);
+  read_len = esp_http_client_read_response(client, response, sizeof(response) - 1);
+  esp_http_client_close(client);
+  esp_http_client_cleanup(client);
+  if (read_len <= 0) {
+    return KEYHAN_AGENT_ERR_NETWORK;
+  }
+
+  err = keyhan_protocol_parse_manifest_v1((const uint8_t *)response,
+                                          (size_t)read_len, out_info);
+  if (err != KEYHAN_AGENT_OK) {
+    ESP_LOGE(TAG, "invalid manifest payload");
+    return err;
+  }
+
+  return KEYHAN_AGENT_OK;
+}
+
+static keyhan_agent_error_t keyhan_osal_download_and_stage(
+    void *ctx, const keyhan_ota_update_info_t *info,
+    keyhan_ota_progress_cb_t progress_cb, void *progress_user) {
+  keyhan_espidf_osal_ctx_t *osal_ctx = (keyhan_espidf_osal_ctx_t *)ctx;
+  esp_http_client_config_t config;
+  esp_http_client_handle_t client;
+  uint8_t chunk[1024];
+  int read_len;
+  uint32_t downloaded = 0;
+
+  if (!osal_ctx || !osal_ctx->stage_chunk || !info || info->image_url[0] == '\0') {
+    return KEYHAN_AGENT_ERR_INVALID_ARG;
+  }
+
+  memset(&config, 0, sizeof(config));
+  config.url = info->image_url;
+  config.method = HTTP_METHOD_GET;
+  client = esp_http_client_init(&config);
+  if (!client) {
+    return KEYHAN_AGENT_ERR_NO_MEM;
+  }
+
+  if (esp_http_client_open(client, 0) != ESP_OK) {
+    esp_http_client_cleanup(client);
+    return KEYHAN_AGENT_ERR_NETWORK;
+  }
+
+  while ((read_len = esp_http_client_read(client, (char *)chunk, sizeof(chunk))) > 0) {
+    keyhan_agent_error_t err = osal_ctx->stage_chunk(osal_ctx->user, chunk,
+                                                     (size_t)read_len);
     if (err != KEYHAN_AGENT_OK) {
-      ESP_LOGE(TAG, "Error on pushing to buffer: %s",
-               KEYHAN_AGENT_ERROR_TO_NAME(err));
+      esp_http_client_close(client);
+      esp_http_client_cleanup(client);
+      return err;
     }
-    memset(output_buffer, 0, MAX_KEYHAN_OSAL_HTTP_EVENT_BUFFER_SIZE);
-    output_len = 0;
-    break;
-  }
-
-  case HTTP_EVENT_DISCONNECTED: {
-    ESP_LOGI(TAG, "HTTP_EVENT_DISCONNECTED");
-    int mbedtls_err = 0;
-    esp_err_t err = esp_tls_get_and_clear_last_error(
-        (esp_tls_error_handle_t)evt->data, &mbedtls_err, NULL);
-    if (err != 0) {
-      ESP_LOGI(TAG, "Last esp error code: 0x%x", err);
-      ESP_LOGI(TAG, "Last mbedtls failure: 0x%x", mbedtls_err);
-    }
-    memset(output_buffer, 0, MAX_KEYHAN_OSAL_HTTP_EVENT_BUFFER_SIZE);
-    output_len = 0;
-    break;
-  }
-  case HTTP_EVENT_REDIRECT:
-    ESP_LOGD(TAG, "HTTP_EVENT_REDIRECT");
-    break;
-  default:
-    break;
-  }
-  return ESP_OK;
-}
-
-keyhan_agent_error_t keyhan_osal_transport_http_init(keyhan_agent_t *agent) {
-
-  if (agent->client == NULL) {
-    agent->client = malloc(sizeof(struct keyhan_osal_transport_client));
-    if (agent->client == NULL) {
-      ESP_LOGE(TAG, "Failed to allocate memory for transport client");
-      return KEYHAN_AGENT_ERR_UNINITIALIZED;
+    downloaded += (uint32_t)read_len;
+    if (progress_cb) {
+      progress_cb(downloaded, info->image_size, progress_user);
     }
   }
 
-#ifdef CONFIG_KEYHAN_TRANSPORT_USE_HTTP
-  esp_http_client_config_t config = {
-      .url = CONFIG_KEYHAN_TARGET_URI,
-      .event_handler = _http_event_handler,
-      .user_data = agent->buffer,
-      .disable_auto_redirect = true,
-  };
-
-  esp_http_client_handle_t client = esp_http_client_init(&config);
-  agent->client->handle = client;
-
-#elif defined(CONFIG_KEYHAN_TRANSPORT_USE_SOCKET)
-  int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
-  if (fd < 0) {
-    ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
-    return ESP_FAIL;
+  esp_http_client_close(client);
+  esp_http_client_cleanup(client);
+  if (read_len < 0) {
+    return KEYHAN_AGENT_ERR_NETWORK;
   }
-  agent->client = fd;
-#endif
-  return KEYHAN_AGENT_OK;
-}
-
-keyhan_agent_error_t keyhan_osal_transport_http_post(keyhan_agent_t *agent,
-                                                     const char *url,
-                                                     void *payload,
-                                                     size_t len) {
-  if (!agent->client || !agent->client->handle) { // Check both
-    return KEYHAN_AGENT_ERR_UNINITIALIZED;
-  }
-  esp_http_client_set_method(agent->client->handle, HTTP_METHOD_POST);
-  esp_http_client_set_url(agent->client->handle, url);
-  esp_http_client_set_header(agent->client->handle, "Content-Type",
-                             "application/keyhan");
-  esp_http_client_set_post_field(agent->client->handle, (const char *)payload,
-                                 len);
-  esp_err_t err = esp_http_client_perform(agent->client->handle);
-  if (err == ESP_OK) {
-    ESP_LOGI(TAG, "HTTP POST Status = %d, content_length = %" PRId64,
-             esp_http_client_get_status_code(agent->client->handle),
-             esp_http_client_get_content_length(agent->client->handle));
-  } else {
-    ESP_LOGE(TAG, "HTTP POST request failed: %s", esp_err_to_name(err));
-  }
-  return KEYHAN_AGENT_OK;
-}
-keyhan_agent_error_t keyhan_osal_transport_http_get(keyhan_agent_t *agent) {
-  if (!agent->client) {
-    return KEYHAN_AGENT_ERR_UNINITIALIZED;
+  if (info->image_size != 0 && downloaded != info->image_size) {
+    return KEYHAN_AGENT_ERR_INTEGRITY;
   }
 
   return KEYHAN_AGENT_OK;
 }
-keyhan_agent_error_t keyhan_osal_transport_http_deinit(keyhan_agent_t *agent) {
-  if (!agent->client) {
-    return KEYHAN_AGENT_ERR_UNINITIALIZED;
-  }
-  free(agent->client);
 
-  return KEYHAN_AGENT_OK;
+static keyhan_agent_error_t keyhan_osal_apply_staged_update(void *ctx,
+                                                            int target_version,
+                                                            int auto_reboot) {
+  keyhan_espidf_osal_ctx_t *osal_ctx = (keyhan_espidf_osal_ctx_t *)ctx;
+  if (!osal_ctx || !osal_ctx->apply_staged) {
+    return KEYHAN_AGENT_ERR_INVALID_ARG;
+  }
+  return osal_ctx->apply_staged(osal_ctx->user, target_version, auto_reboot);
 }
+
+const keyhan_osal_ota_ops_t g_keyhan_espidf_osal_ops = {
+    .fetch_update_info = keyhan_osal_fetch_update_info,
+    .download_and_stage = keyhan_osal_download_and_stage,
+    .apply_staged_update = keyhan_osal_apply_staged_update,
+};

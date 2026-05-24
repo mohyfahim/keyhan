@@ -1,166 +1,101 @@
-// #include "keyhan/osal.h"
+#include "keyhan/osal.h"
+#include "keyhan/ports/zephyr_osal.h"
+#include "keyhan/protocol.h"
 
-// #include <stdlib.h>
-// #include <string.h>
+typedef struct {
+  keyhan_zephyr_osal_ctx_t *ctx;
+  keyhan_ota_progress_cb_t progress_cb;
+  void *progress_user;
+  uint32_t downloaded;
+  uint32_t total;
+} keyhan_zephyr_download_ctx_t;
 
-// #include <zephyr/kernel.h>
-// #include <zephyr/sys/time_units.h>
+static keyhan_agent_error_t keyhan_zephyr_on_chunk(void *chunk_user,
+                                                    const uint8_t *data,
+                                                    size_t len) {
+  keyhan_zephyr_download_ctx_t *dl = (keyhan_zephyr_download_ctx_t *)chunk_user;
+  keyhan_agent_error_t err;
 
-// #ifndef OTA_ZEPHYR_MAX_TASKS
-// #define OTA_ZEPHYR_MAX_TASKS 4
-// #endif
+  if (!dl || !dl->ctx || !dl->ctx->stage_chunk) {
+    return KEYHAN_AGENT_ERR_INVALID_ARG;
+  }
 
-// struct ota_osal_task {
-//   struct k_thread thread;
-//   k_tid_t tid;
-//   k_thread_stack_t *stack;
-//   size_t stack_size;
-//   ota_osal_task_entry_t entry;
-//   void *arg;
-//   bool finished;
-// };
+  err = dl->ctx->stage_chunk(dl->ctx->user, data, len);
+  if (err != KEYHAN_AGENT_OK) {
+    return err;
+  }
 
-// struct ota_osal_mutex {
-//   struct k_mutex mutex;
-// };
+  dl->downloaded += (uint32_t)len;
+  if (dl->progress_cb) {
+    dl->progress_cb(dl->downloaded, dl->total, dl->progress_user);
+  }
+  return KEYHAN_AGENT_OK;
+}
 
-// static void zephyr_task_trampoline(void *p1, void *p2, void *p3) {
-//   struct ota_osal_task *task = (struct ota_osal_task *)p1;
-//   (void)p2;
-//   (void)p3;
+static keyhan_agent_error_t keyhan_zephyr_fetch_update_info(
+    void *ctx, const char *device_token, keyhan_ota_update_info_t *out_info) {
+  keyhan_zephyr_osal_ctx_t *osal_ctx = (keyhan_zephyr_osal_ctx_t *)ctx;
+  char response[384];
+  size_t response_len = 0;
+  keyhan_agent_error_t err;
 
-//   if (task && task->entry) {
-//     task->entry(task->arg);
-//   }
+  if (!osal_ctx || !osal_ctx->manifest_url || !osal_ctx->http_get_manifest ||
+      !device_token || !out_info) {
+    return KEYHAN_AGENT_ERR_INVALID_ARG;
+  }
 
-//   task->finished = true;
-// }
+  err = osal_ctx->http_get_manifest(osal_ctx->user, osal_ctx->manifest_url,
+                                    device_token, response, sizeof(response),
+                                    &response_len);
+  if (err != KEYHAN_AGENT_OK) {
+    return err;
+  }
+  return keyhan_protocol_parse_manifest_v1((const uint8_t *)response, response_len,
+                                           out_info);
+}
 
-// int ota_osal_task_create(ota_osal_task_t **task_out,
-//                          const ota_osal_task_params_t *params) {
-//   struct ota_osal_task *task;
+static keyhan_agent_error_t keyhan_zephyr_download_and_stage(
+    void *ctx, const keyhan_ota_update_info_t *info,
+    keyhan_ota_progress_cb_t progress_cb, void *progress_user) {
+  keyhan_zephyr_osal_ctx_t *osal_ctx = (keyhan_zephyr_osal_ctx_t *)ctx;
+  keyhan_zephyr_download_ctx_t download_ctx;
+  keyhan_agent_error_t err;
 
-//   if (!task_out || !params || !params->entry || params->stack_size == 0) {
-//     return -1;
-//   }
+  if (!osal_ctx || !osal_ctx->download_image || !osal_ctx->stage_chunk || !info ||
+      info->image_url[0] == '\0') {
+    return KEYHAN_AGENT_ERR_INVALID_ARG;
+  }
 
-//   task = (struct ota_osal_task *)calloc(1, sizeof(*task));
-//   if (!task) {
-//     return -1;
-//   }
+  download_ctx.ctx = osal_ctx;
+  download_ctx.progress_cb = progress_cb;
+  download_ctx.progress_user = progress_user;
+  download_ctx.downloaded = 0;
+  download_ctx.total = info->image_size;
 
-//   task->stack = (k_thread_stack_t *)k_malloc(params->stack_size);
-//   if (!task->stack) {
-//     free(task);
-//     return -1;
-//   }
+  err = osal_ctx->download_image(osal_ctx->user, info->image_url,
+                                 keyhan_zephyr_on_chunk, &download_ctx);
+  if (err != KEYHAN_AGENT_OK) {
+    return err;
+  }
 
-//   task->stack_size = params->stack_size;
-//   task->entry = params->entry;
-//   task->arg = params->arg;
-//   task->finished = false;
+  if (info->image_size != 0 && download_ctx.downloaded != info->image_size) {
+    return KEYHAN_AGENT_ERR_INTEGRITY;
+  }
+  return KEYHAN_AGENT_OK;
+}
 
-//   task->tid = k_thread_create(&task->thread, task->stack, task->stack_size,
-//                               zephyr_task_trampoline, task, NULL, NULL,
-//                               params->priority, 0, K_NO_WAIT);
+static keyhan_agent_error_t keyhan_zephyr_apply_staged_update(void *ctx,
+                                                              int target_version,
+                                                              int auto_reboot) {
+  keyhan_zephyr_osal_ctx_t *osal_ctx = (keyhan_zephyr_osal_ctx_t *)ctx;
+  if (!osal_ctx || !osal_ctx->apply_staged) {
+    return KEYHAN_AGENT_ERR_INVALID_ARG;
+  }
+  return osal_ctx->apply_staged(osal_ctx->user, target_version, auto_reboot);
+}
 
-//   if (!task->tid) {
-//     k_free(task->stack);
-//     free(task);
-//     return -1;
-//   }
-
-//   if (params->name) {
-//     k_thread_name_set(task->tid, params->name);
-//   }
-
-//   *task_out = task;
-//   return 0;
-// }
-
-// int ota_osal_task_join(ota_osal_task_t *task, uint32_t timeout_ms) {
-//   int64_t end = k_uptime_get() + timeout_ms;
-
-//   if (!task) {
-//     return -1;
-//   }
-
-//   while (!task->finished) {
-//     if (timeout_ms != 0xFFFFFFFFU && k_uptime_get() >= end) {
-//       return -1;
-//     }
-//     k_sleep(K_MSEC(10));
-//   }
-
-//   return 0;
-// }
-
-// int ota_osal_task_destroy(ota_osal_task_t *task) {
-//   if (!task) {
-//     return -1;
-//   }
-
-//   if (!task->finished && task->tid) {
-//     k_thread_abort(task->tid);
-//   }
-
-//   if (task->stack) {
-//     k_free(task->stack);
-//   }
-
-//   free(task);
-//   return 0;
-// }
-
-// void ota_osal_sleep_ms(uint32_t ms) { k_sleep(K_MSEC(ms)); }
-
-// uint64_t ota_osal_time_ms(void) { return (uint64_t)k_uptime_get(); }
-
-// int ota_osal_mutex_create(ota_osal_mutex_t **mtx_out) {
-//   struct ota_osal_mutex *mtx;
-
-//   if (!mtx_out) {
-//     return -1;
-//   }
-
-//   mtx = (struct ota_osal_mutex *)calloc(1, sizeof(*mtx));
-//   if (!mtx) {
-//     return -1;
-//   }
-
-//   if (k_mutex_init(&mtx->mutex) != 0) {
-//     free(mtx);
-//     return -1;
-//   }
-
-//   *mtx_out = mtx;
-//   return 0;
-// }
-
-// int ota_osal_mutex_lock(ota_osal_mutex_t *mtx, uint32_t timeout_ms) {
-//   k_timeout_t timeout;
-
-//   if (!mtx) {
-//     return -1;
-//   }
-
-//   timeout = (timeout_ms == 0xFFFFFFFFU) ? K_FOREVER : K_MSEC(timeout_ms);
-//   return k_mutex_lock(&mtx->mutex, timeout);
-// }
-
-// int ota_osal_mutex_unlock(ota_osal_mutex_t *mtx) {
-//   if (!mtx) {
-//     return -1;
-//   }
-
-//   return k_mutex_unlock(&mtx->mutex);
-// }
-
-// int ota_osal_mutex_destroy(ota_osal_mutex_t *mtx) {
-//   if (!mtx) {
-//     return -1;
-//   }
-
-//   free(mtx);
-//   return 0;
-// }
+const keyhan_osal_ota_ops_t g_keyhan_zephyr_osal_ops = {
+    .fetch_update_info = keyhan_zephyr_fetch_update_info,
+    .download_and_stage = keyhan_zephyr_download_and_stage,
+    .apply_staged_update = keyhan_zephyr_apply_staged_update,
+};

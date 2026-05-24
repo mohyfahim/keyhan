@@ -13,6 +13,7 @@
 
 #include "keyhan/agent.h"
 #include "keyhan/error.h"
+#include "keyhan/ports/espidf_osal.h"
 
 static const char *TAG = "keyhan-esp32-sync-http";
 static const char *DEVICE_TOKEN = "abc123";
@@ -47,24 +48,23 @@ static void event_handler(void *arg, esp_event_base_t event_base,
 }
 
 static void on_state_changed(int old_state, int new_state, void *user) {
-  (void)old_state;
-  (void)new_state;
+  ESP_LOGI(TAG, "agent state changed: %d -> %d", old_state, new_state);
   (void)user;
 }
 
 static void on_progress(uint32_t downloaded, uint32_t total, void *user) {
   (void)user;
-  // app log/telemetry
+  ESP_LOGI(TAG, "download progress: %" PRIu32 "/%" PRIu32, downloaded, total);
 }
 
 static void on_error(keyhan_agent_error_t err, void *user) {
   (void)user;
-  // app error handling
+  ESP_LOGE(TAG, "OTA error: %s", KEYHAN_AGENT_ERROR_TO_NAME(err));
 }
 
 static void on_update_ready(void *user) {
   (void)user;
-  // trigger apply or wait for maintenance window
+  ESP_LOGI(TAG, "update staged and ready");
 }
 
 esp_err_t dummy_write_version_to_nvs(nvs_handle_t hndl) {
@@ -78,6 +78,43 @@ esp_err_t dummy_write_version_to_nvs(nvs_handle_t hndl) {
   }
 
   return ESP_OK;
+}
+
+typedef struct {
+  nvs_handle_t nvs;
+  uint32_t staged_size;
+} app_osal_userdata_t;
+
+static keyhan_agent_error_t app_stage_chunk(void *user, const uint8_t *data,
+                                            size_t len) {
+  app_osal_userdata_t *ctx = (app_osal_userdata_t *)user;
+  (void)data;
+  if (!ctx) {
+    return KEYHAN_AGENT_ERR_INVALID_ARG;
+  }
+  ctx->staged_size += (uint32_t)len;
+  return KEYHAN_AGENT_OK;
+}
+
+static keyhan_agent_error_t app_apply_staged(void *user, int target_version,
+                                             int auto_reboot) {
+  app_osal_userdata_t *ctx = (app_osal_userdata_t *)user;
+  esp_err_t err;
+  if (!ctx) {
+    return KEYHAN_AGENT_ERR_INVALID_ARG;
+  }
+
+  err = nvs_set_i32(ctx->nvs, "app_version", target_version);
+  if (err != ESP_OK || nvs_commit(ctx->nvs) != ESP_OK) {
+    return KEYHAN_AGENT_ERR_OS;
+  }
+
+  ESP_LOGI(TAG, "applied version=%d staged_size=%" PRIu32, target_version,
+           ctx->staged_size);
+  if (auto_reboot) {
+    esp_restart();
+  }
+  return KEYHAN_AGENT_OK;
 }
 
 void app_main(void) {
@@ -165,14 +202,23 @@ void app_main(void) {
   }
 
   keyhan_agent_t *agent = NULL;
+  app_osal_userdata_t app_osal_user = {.nvs = nvs_handle, .staged_size = 0};
+  keyhan_espidf_osal_ctx_t osal_ctx = {
+      .manifest_url = CONFIG_KEYHAN_TARGET_URI,
+      .stage_chunk = app_stage_chunk,
+      .apply_staged = app_apply_staged,
+      .user = &app_osal_user,
+  };
 
   keyhan_agent_device_info_t devinfo = {
       .current_version = app_version,
       .device_token = DEVICE_TOKEN,
   };
   keyhan_agent_init_params_t params = {
-      .auto_apply = false,
+      .auto_apply = true,
       .auto_reboot = false,
+      .osal_ops = &g_keyhan_espidf_osal_ops,
+      .osal_ctx = &osal_ctx,
   };
   keyhan_agent_callbacks_t cb = {
       .on_state_changed = on_state_changed,
@@ -199,11 +245,11 @@ void app_main(void) {
   }
 
   while (true) {
-
-    // err = keyhan_agent_step(agent);
-    // if (err != KEYHAN_AGENT_OK) {
-    //   // todo
-    // }
+    k_err = keyhan_agent_step(agent);
+    if (k_err != KEYHAN_AGENT_OK && k_err != KEYHAN_AGENT_ERR_NO_UPDATE) {
+      ESP_LOGE(TAG, "Error on polling keyhan agent: %s",
+               KEYHAN_AGENT_ERROR_TO_NAME(k_err));
+    }
 
     ESP_LOGD(TAG, "loop");
 

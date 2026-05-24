@@ -1,7 +1,5 @@
 #pragma once
-#include "keyhan/agent.h"
 #include "keyhan/error.h"
-#include "keyhan/transport.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -9,12 +7,26 @@
 extern "C" {
 #endif
 
-keyhan_agent_error_t keyhan_osal_transport_http_init(keyhan_agent_t *agent);
-keyhan_agent_error_t keyhan_osal_transport_http_post(keyhan_agent_t *agent,
-                                                     const char *url,
-                                                     void *payload, size_t len);
-keyhan_agent_error_t keyhan_osal_transport_http_get(keyhan_agent_t *agent);
-keyhan_agent_error_t keyhan_osal_transport_http_deinit(keyhan_agent_t *agent);
+typedef struct {
+  int version;
+  uint32_t image_size;
+  char image_url[256];
+} keyhan_ota_update_info_t;
+
+typedef void (*keyhan_ota_progress_cb_t)(uint32_t downloaded, uint32_t total,
+                                         void *user);
+
+typedef struct {
+  keyhan_agent_error_t (*fetch_update_info)(void *ctx, const char *device_token,
+                                            keyhan_ota_update_info_t *out_info);
+  keyhan_agent_error_t (*download_and_stage)(void *ctx,
+                                             const keyhan_ota_update_info_t *info,
+                                             keyhan_ota_progress_cb_t progress_cb,
+                                             void *progress_user);
+  keyhan_agent_error_t (*apply_staged_update)(void *ctx, int target_version,
+                                              int auto_reboot);
+} keyhan_osal_ota_ops_t;
+
 #ifdef __cplusplus
 }
 #endif
