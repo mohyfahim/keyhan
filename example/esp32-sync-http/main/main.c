@@ -13,7 +13,6 @@
 
 #include "keyhan/agent.h"
 #include "keyhan/error.h"
-#include "keyhan/ports/espidf_osal.h"
 
 static const char *TAG = "keyhan-esp32-sync-http";
 static const char *DEVICE_TOKEN = "abc123";
@@ -47,8 +46,9 @@ static void event_handler(void *arg, esp_event_base_t event_base,
   }
 }
 
-static void on_state_changed(int old_state, int new_state, void *user) {
-  ESP_LOGI(TAG, "agent state changed: %d -> %d", old_state, new_state);
+static void on_state_changed(keyhan_agent_state_t from, keyhan_agent_state_t to,
+                             void *user) {
+  ESP_LOGI(TAG, "agent state changed: %d -> %d", from, to);
   (void)user;
 }
 
@@ -130,7 +130,7 @@ void app_main(void) {
   ESP_ERROR_CHECK(err);
 
   // Open NVS handle
-  ESP_LOGI(TAG, "\nOpening Non-Volatile Storage (NVS) handle...");
+  ESP_LOGI(TAG, "opening nvs handle...");
   nvs_handle_t nvs_handle;
   err = nvs_open("storage", NVS_READWRITE, &nvs_handle);
   if (err != ESP_OK) {
@@ -139,7 +139,7 @@ void app_main(void) {
   }
 
   int32_t app_version = -1;
-  ESP_LOGI(TAG, "\nReading app version from NVS...");
+  ESP_LOGI(TAG, "Reading app version from NVS...");
   err = nvs_get_i32(nvs_handle, "app_version", &app_version);
   switch (err) {
   case ESP_OK:
@@ -202,35 +202,24 @@ void app_main(void) {
   }
 
   keyhan_agent_t *agent = NULL;
-  app_osal_userdata_t app_osal_user = {.nvs = nvs_handle, .staged_size = 0};
-  keyhan_espidf_osal_ctx_t osal_ctx = {
-      .manifest_url = CONFIG_KEYHAN_TARGET_URI,
-      .stage_chunk = app_stage_chunk,
-      .apply_staged = app_apply_staged,
-      .user = &app_osal_user,
-  };
-
-  keyhan_agent_device_info_t devinfo = {
-      .current_version = app_version,
+  keyhan_agent_error_t k_err;
+  keyhan_agent_config_t keyhan_cfg = {
       .device_token = DEVICE_TOKEN,
-  };
-  keyhan_agent_init_params_t params = {
+      .manifest_url = "http://192.168.1.100:8080/manifest.json",
+      .current_version = app_version,
       .auto_apply = true,
       .auto_reboot = false,
-      .osal_ops = &g_keyhan_espidf_osal_ops,
-      .osal_ctx = &osal_ctx,
+      .osal_ops_override = NULL,
+      .events =
+          {
+              .on_state_changed = on_state_changed,
+              .on_progress = on_progress,
+              .on_error = on_error,
+              .on_update_ready = on_update_ready,
+              .user = NULL,
+          },
   };
-  keyhan_agent_callbacks_t cb = {
-      .on_state_changed = on_state_changed,
-      .on_progress = on_progress,
-      .on_error = on_error,
-      .on_update_ready = on_update_ready,
-      .user = NULL,
-  };
-
-  keyhan_agent_error_t k_err;
-
-  k_err = keyhan_agent_init(&agent, &devinfo, &params, &cb);
+  k_err = keyhan_agent_init(&agent, &keyhan_cfg);
   if (k_err != KEYHAN_AGENT_OK) {
     ESP_LOGE(TAG, "Error on initializing keyhan agent, err: %s",
              KEYHAN_AGENT_ERROR_TO_NAME(k_err));

@@ -12,29 +12,30 @@ extern "C" {
 
 typedef struct keyhan_agent keyhan_agent_t;
 
-typedef struct {
-  const char *device_token;
-  int current_version;
-} keyhan_agent_device_info_t;
+// typedef struct {
+//   const char *device_token;
+//   int current_version;
+// } keyhan_agent_device_info_t;
 
-typedef struct {
-  void (*on_state_changed)(int old_state, int new_state, void *user);
-  void (*on_progress)(uint32_t downloaded, uint32_t total, void *user);
-  void (*on_error)(keyhan_agent_error_t err, void *user);
-  void (*on_update_ready)(void *user);
-  void *user;
-} keyhan_agent_callbacks_t;
+// typedef struct {
+//   void (*on_state_changed)(int old_state, int new_state, void *user);
+//   void (*on_progress)(uint32_t downloaded, uint32_t total, void *user);
+//   void (*on_error)(keyhan_agent_error_t err, void *user);
+//   void (*on_update_ready)(void *user);
+//   void *user;
+// } keyhan_agent_callbacks_t;
 
-typedef struct {
-  bool auto_apply;
-  bool auto_reboot;
-  const keyhan_osal_ota_ops_t *osal_ops;
-  void *osal_ctx;
-} keyhan_agent_init_params_t;
+// typedef struct {
+//   bool auto_apply;
+//   bool auto_reboot;
+//   const keyhan_osal_ota_ops_t *osal_ops;
+//   void *osal_ctx;
+// } keyhan_agent_init_params_t;
 
 typedef enum {
   KEYHAN_AGENT_STATE_STOPPED = 0,
   KEYHAN_AGENT_STATE_IDLE,
+  KEYHAN_AGENT_STATE_STARTING,
   KEYHAN_AGENT_STATE_CHECKING,
   KEYHAN_AGENT_STATE_DOWNLOADING,
   KEYHAN_AGENT_STATE_APPLYING,
@@ -44,10 +45,28 @@ typedef enum {
   KEYHAN_AGENT_STATE_ERROR,
 } keyhan_agent_state_t;
 
+typedef struct {
+  const char *manifest_url;
+  const char *device_token;
+  int current_version;
+  bool auto_apply;
+  bool auto_reboot;
+
+  /* Optional: for unit tests only; NULL = use g_keyhan_osal_ops */
+  const keyhan_osal_ota_ops_t *osal_ops_override;
+  /* Optional; any field may be NULL */
+  struct {
+    void (*on_state_changed)(keyhan_agent_state_t from, keyhan_agent_state_t to,
+                             void *user);
+    void (*on_progress)(uint32_t downloaded, uint32_t total, void *user);
+    void (*on_error)(keyhan_agent_error_t err, void *user);
+    void (*on_update_ready)(void *user);
+    void *user;
+  } events;
+} keyhan_agent_config_t;
+
 keyhan_agent_error_t keyhan_agent_init(keyhan_agent_t **agent_out,
-                                       keyhan_agent_device_info_t *devinfo,
-                                       keyhan_agent_init_params_t *params,
-                                       keyhan_agent_callbacks_t *cb);
+                                       const keyhan_agent_config_t *cfg);
 keyhan_agent_error_t keyhan_agent_start(keyhan_agent_t *agent);
 keyhan_agent_error_t keyhan_agent_step(keyhan_agent_t *agent);
 keyhan_agent_error_t keyhan_agent_stop(keyhan_agent_t *agent);

@@ -35,7 +35,7 @@ typedef struct __attribute__((packed)) {
 
 keyhan_agent_error_t
 keyhan_protocol_parse_manifest_v1(const uint8_t *payload, size_t payload_len,
-                                  keyhan_ota_update_info_t *out_info);
+                                  keyhan_agent_update_t *out_info);
 
 #ifdef __cplusplus
 }
